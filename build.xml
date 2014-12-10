@@ -12,6 +12,10 @@
 	<property name="mc.jar" value="mc-launcher.jar" />
 	<property name="libs.alljars" value="alllibs.jar" />
 	
+	
+	
+	<!--<taskdef name="bundleapp" classname="com.oracle.appbundler.AppBundlerTask"/>-->
+	
 	<path id="build.classpath">
 		<fileset dir="${libs.dir}">
 			<include name="*.jar" />
@@ -19,7 +23,9 @@
 	</path>
 	
 	<path id="resources.classpath">
-		<fileset file="${libs.dir}/${mc.jar}" />
+		<fileset dir="${libs.dir}">
+			<include name="${mc.jar}" />
+		</fileset>
 	</path>
 
 	<target name="clean" depends="prepare" description="Clean build and dist dirs">
@@ -39,6 +45,7 @@
 			<src path="${src.dir}" />
 			<exclude name="com/adrian/playground/**" />
 			<exclude name="net/minecraft/**" />
+			<exclude name="com/mojang/**" />
 		</javac>
 	</target>
 	
@@ -57,6 +64,9 @@
 			<zipfileset dir="${resources.dir}" includes="Util.class" fullpath="com/mineshaftersquared/resources/Util.class" />
 			<zipfileset dir="${resources.dir}" includes="Http.class" fullpath="com/mineshaftersquared/resources/Http.class" />
 			<zipfileset dir="${resources.dir}" includes="Downloadable.class" fullpath="com/mineshaftersquared/resources/Downloadable.class" />
+			<zipfileset dir="${resources.dir}" includes="InitialHandler.class" fullpath="com/mineshaftersquared/resources/InitialHandler.class" />
+			<zipfileset dir="${resources.dir}" includes="InitialHandler$1MS2Connection.class" fullpath="com/mineshaftersquared/resources/InitialHandler$1MS2Connection.class" />
+			<zipfileset dir="${resources.dir}" includes="HttpAuthenticationService.class" fullpath="com/mineshaftersquared/resources/HttpAuthenticationService.class" />
 			<zipfileset src="${dist.dir}/${libs.alljars}">
 				<include name="**/*.class" />
 			</zipfileset>
@@ -77,11 +87,18 @@
 	</target>
 	
 	<target name="package.mac" description="Package OSX .app executable">
-		<copy todir="${dist.dir}/${dist.macapp}">
-			<fileset dir="${resources.dir}/${dist.macapp}" includes="**" />
-		</copy>
-		<copy file="${dist.dir}/${dist.jarname}" tofile="${dist.dir}/mineshaftersquared.app/Contents/Resources/Java/${dist.jarname}" />
-		<zip basedir="${dist.dir}/${dist.macapp}" destfile="${dist.dir}/${dist.macapp}.zip" />
+		<!--<copy todir="${dist.dir}" >  
+			<fileset dir="${resources.dir}">  
+				<include name="${dist.macapp}/**" />
+			</fileset>
+		</copy>-->
+		<!--<copy file="${dist.dir}/${dist.jarname}" tofile="${dist.dir}/${dist.macapp}/Contents/Java/${dist.jarname}" />
+		<copy file="${resources.dir}/ms2.icns" tofile="${dist.dir}/${dist.macapp}/Contents/Resources/ms2.icns" />-->
+		<!--<zip destfile="${dist.dir}/${dist.macapp}.zip" >
+			<fileset dir="${dist.dir}">
+				<include name="${dist.macapp}/**" />
+			</fileset>
+		</zip>-->
 	</target>
 	
 	<target name="package.windows" description="Package Windows .exe executable">
@@ -93,7 +110,7 @@
 		<!--<copy todir="${dist.dir}/${v}/${dist.macapp}">
 			<fileset dir="${resources.dir}/${dist.macapp}" includes="**" />
 		</copy>-->
-		<copy file="${dist.dir}/${dist.macapp}.zip" tofile="${dist.dir}/${v}/${dist.macapp}.zip" />
+		<!--<copy file="${dist.dir}/${dist.macapp}.zip" tofile="${dist.dir}/${v}/${dist.macapp}.zip" />-->
 		<copy file="${dist.dir}/${dist.winexe}" tofile="${dist.dir}${v}/${dist.winexe}" failonerror="false" />
 		<copy file="${dist.dir}/ms2-${v}.zip" tofile="${dist.dir}/${v}/ms2-${v}.zip" />
 	</target>
@@ -108,16 +125,18 @@
 		<javac destdir="${build.dir}" classpathref="resources.classpath" encoding="utf-8" target="1.7" source="1.7" includeantruntime="false">
 			<src path="${src.dir}" />
 			<include name="net/minecraft/**" />
+			<include name="com/mojang/**" />
 		</javac>
 	</target>
 	
 	<target name="package.resources" description="Package resources (MC patches)">
 		<delete>
-			<fileset dir="${resources.dir}" includes="*.class" />
+			<fileset dir="${resources.dir}" includes="*.class" excludes="InitialHandler*.class" />
 		</delete>
 		<copy todir="${resources.dir}" flatten="true" includeemptydirs="false">
 			<fileset dir="${build.dir}">
 				<include name="net/minecraft/**" />
+				<include name="com/mojang/**" />
 			</fileset>
 		</copy>
 	</target>

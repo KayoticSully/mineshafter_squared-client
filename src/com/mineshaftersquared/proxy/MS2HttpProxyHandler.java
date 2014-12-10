@@ -35,16 +35,16 @@ public class MS2HttpProxyHandler implements MS2Proxy.Handler {
 
 	private final Map<String, byte[]> skinCache;
 	private final Map<String, byte[]> cloakCache;
+	
+	public static final String MOJANG_JOINSERVER = "http://session.minecraft.net/game/joinserver.jsp";
+	public static final String MOJANG_CHECKSERVER = "http://session.minecraft.net/game/checkserver.jsp";
 
-	private final MCYggdrasilOffline yggdrasilOffline;
 	private static final String[] BLACKLISTED_HEADERS = new String[] {
-			"Connection", "Proxy-Connection", "Transfer-Encoding" };
+		"Connection", "Proxy-Connection", "Transfer-Encoding" };
 
 	public MS2HttpProxyHandler() {
 		this.skinCache = new HashMap<String, byte[]>();
 		this.cloakCache = new HashMap<String, byte[]>();
-		this.yggdrasilOffline = new MCYggdrasilOffline(new File(
-				MS2Utils.getDefaultMCDir(), "launcher_profiles.json"));
 	}
 
 	public void handle(MS2Proxy ms2Proxy, Socket socket) {
@@ -179,7 +179,7 @@ public class MS2HttpProxyHandler implements MS2Proxy.Handler {
 		if (authServerMatcher.matches()) {
 			MS2Proxy.log.info("Proxy - auth");
 
-			String action = authServerMatcher.group(1);
+			String action = authServerMatcher.group(1).toLowerCase();
 			try {
 				char[] body = new char[contentLength];
 				InputStreamReader reader = new InputStreamReader(in, Charset.forName("utf-8"));
@@ -232,6 +232,11 @@ public class MS2HttpProxyHandler implements MS2Proxy.Handler {
 
 	private String authServerAction(String action, String postedJSON,
 			MS2Proxy ms2Proxy) {
+		MCYggdrasilOffline yggdrasil = null;
+		if (ms2Proxy.offline) {
+			MS2Proxy.log.info("Using offline authentication");
+			yggdrasil = new MCYggdrasilOffline(new File(MS2Utils.getDefaultMCDir(), MCYggdrasilOffline.LAUNCHER_PROFILES));
+		}
 		MS2Proxy.log.info("Proxy - auth - action: " + action
 				+ ", postedJSON - " + postedJSON);
 		Gson gson = new Gson();
@@ -246,28 +251,42 @@ public class MS2HttpProxyHandler implements MS2Proxy.Handler {
 		 */
 		SimpleHTTPRequest request;
 		if (action.equalsIgnoreCase("authenticate")) {
+			if (ms2Proxy.offline) {
+				String response = yggdrasil.authenticate(data);
+				MS2Proxy.log.info("Proxy - auth - returnedJSON - " + response);
+				return response;
+			}
 			request = new SimpleHTTPRequest(
 					ms2Proxy.routes.getAuthenticateURL());
 			request.addPost("username", data.username);
 			request.addPost("password", data.password);
 			request.addPost("clientToken", data.clientToken);
-			// return this.yggdrasilOffline.authenticate(data);
 		} else if (action.equalsIgnoreCase("refresh")) {
+			if (ms2Proxy.offline) {
+				String response = yggdrasil.refresh(data);
+				MS2Proxy.log.info("Proxy - auth - returnedJSON - " + response);
+				return response;
+			}
 			request = new SimpleHTTPRequest(ms2Proxy.routes.getRefreshURL());
 			request.addPost("clientToken", data.clientToken);
 			request.addPost("accessToken", data.accessToken);
-			// return this.yggdrasilOffline.refresh(data);
 		} else if (action.equalsIgnoreCase("invalidate")) {
+			if (ms2Proxy.offline) {
+				String response = yggdrasil.invalidate(data);
+				MS2Proxy.log.info("Proxy - auth - returnedJSON (offline) - " + response);
+				return response;
+			}
 			request = new SimpleHTTPRequest(ms2Proxy.routes.getInvalidateURL());
 			request.addPost("clientToken", data.clientToken);
 			request.addPost("accessToken", data.accessToken);
-			// return this.yggdrasilOffline.invalidate(data);
 		} else {
 			throw new IllegalArgumentException("Unknown action " + action);
 		}
 
-		return new String(request.doPost(Proxy.NO_PROXY),
+		String response = new String(request.doPost(Proxy.NO_PROXY),
 				Charset.forName("utf-8"));
+		MS2Proxy.log.info("Proxy - auth - returnedJSON - " + response);
+		return response;
 	}
 
 	private String authMultiplayerAction(String action, String data,
@@ -275,20 +294,58 @@ public class MS2HttpProxyHandler implements MS2Proxy.Handler {
 		MS2Proxy.log.info("Proxy - auth - action: " + action
 				+ ", data - " + data);
 
-		SimpleHTTPRequest request;
-		if (action.equalsIgnoreCase("joinserver")) {
+		SimpleHTTPRequest request = null;
+		if (action.equals("joinserver")) {
 			request = new SimpleHTTPRequest(ms2Proxy.routes.getJoinServerURL());
 			// return "OK";
-		} else if (action.equalsIgnoreCase("checkserver")) {
+		} else if (action.equals("checkserver")) {
 			request = new SimpleHTTPRequest(ms2Proxy.routes.getCheckServerURL());
 			// return "YES";
 		} else {
 			throw new IllegalArgumentException("Unknown action " + action);
 		}
-
 		request.addGet(data);
-		return new String(request.doGet(Proxy.NO_PROXY),
+		String ms2Response = new String(request.doGet(Proxy.NO_PROXY),
 				Charset.forName("utf-8"));
+		
+		if (action.equals("joinserver")) {
+			if (ms2Response.equals("OK")) {
+				return "OK";
+			}
+		} else if (action.equals("checkserver")) {
+			if (ms2Response.equals("YES")) {
+				return "YES";
+			}
+		}
+		
+//		if (ms2Proxy.isPlayerMarked(player)) {
+//			return ms2Response;
+//		}
+		
+		MS2Proxy.log.info("Player not authenticated with Mineshafter Squared. Trying Mojang (passthrough)");
+		
+		SimpleHTTPRequest request2 = null;
+		if (action.equals("joinserver")) {
+			request2 = new SimpleHTTPRequest(MOJANG_JOINSERVER);
+		} else if (action.equals("checkserver")) {
+			request2 = new SimpleHTTPRequest(MOJANG_CHECKSERVER);
+		}
+		request2.addGet(data);
+		String mojangResponse = new String(request2.doGet(Proxy.NO_PROXY), Charset.forName("utf-8"));
+		
+		if (action.equals("joinserver")) {
+			if (mojangResponse.equals("OK")) {
+				return "OK";
+			}
+		} else if (action.equals("checkserver")) {
+			if (mojangResponse.equals("YES")) {
+				return "YES";
+			}
+		}
+		
+//		ms2Proxy.markPlayer(player);
+		
+		return mojangResponse;
 	}
 
 	public void noProxy(String method, String url, Map<String, String> headers,
@@ -303,10 +360,10 @@ public class MS2HttpProxyHandler implements MS2Proxy.Handler {
 
 			for (String key : headers.keySet()) {
 				con.setRequestProperty(key, headers.get(key)); // TODO Might
-																// need to
-																// blacklist
-																// these as well
-																// later
+				// need to
+				// blacklist
+				// these as well
+				// later
 			}
 
 			if (post) {

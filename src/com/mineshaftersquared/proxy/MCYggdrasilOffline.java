@@ -9,14 +9,16 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+import com.creatifcubed.simpleapi.SimpleUtils;
 import com.google.gson.Gson;
-import com.mineshaftersquared.proxy.MCYggdrasilOffline.ProfilesJSON.OuterProfile;
 
 /**
  * Credits to download13 of Mineshafter
  * 
  */
 public class MCYggdrasilOffline {
+	
+	public static final String LAUNCHER_PROFILES = "launcher_profiles.json";
 
 	private final List<Profile> profiles;
 	private final Gson gson;
@@ -27,15 +29,13 @@ public class MCYggdrasilOffline {
 
 		try {
 			ProfilesJSON profiles = gson.fromJson(new FileReader(profilesFile), ProfilesJSON.class);
-			Map<String, OuterProfile> map = profiles.profiles;
+			Map<String, Profile> map = profiles.authenticationDatabase;
 			for (String key : map.keySet()) {
-				OuterProfile op = map.get(key);
-				Profile p = op.auth;
+				Profile p = map.get(key);
 				if (p == null) {
 					continue;
 				}
-
-				if (p.displayName == null || p.displayName.trim().isEmpty()) {
+				if (p.displayName == null) {
 					p.displayName = p.username;
 				}
 				this.profiles.add(p);
@@ -69,8 +69,8 @@ public class MCYggdrasilOffline {
 		String accessToken = randomToken();
 		Profile p = this.profileByUsername(req.username);
 		if (p == null) {
-			String clientId = randomToken();
-			p = new Profile(req.username, accessToken, clientId, req.username);
+			String uuid = randomToken();
+			p = new Profile(req.username, accessToken, uuid, req.username);
 			this.profiles.add(p);
 		}
 		p.accessToken = accessToken;
@@ -105,10 +105,14 @@ public class MCYggdrasilOffline {
 	}
 
 	public static class Profile {
-		public final String username;
+		// authenticationDatabase
+		public String username;
 		public String accessToken;
-		public final String uuid;
+		public String uuid;
 		public String displayName;
+		// profiles
+		public String name;
+		public String playerUUID;
 
 		public Profile(String username, String accessToken, String uuid, String displayName) {
 			this.username = username;
@@ -117,28 +121,11 @@ public class MCYggdrasilOffline {
 			this.displayName = displayName;
 		}
 	}
-
 	public static class ProfilesJSON {
-		public final Map<String, OuterProfile> profiles;
-		public final String selectedProfile;
-		public final String clientToken;
-
-		public ProfilesJSON(String selectedProfile, String clientToken) {
-			this.profiles = new HashMap<String, OuterProfile>();
-			this.selectedProfile = selectedProfile;
-			this.clientToken = clientToken;
-		}
-
-
-		public static class OuterProfile {
-			public final String name;
-			public final Profile auth;
-
-			public OuterProfile(String name, Profile auth) {
-				this.name = name;
-				this.auth = auth;
-			}
-		}
+		public Map<String, Profile> profiles;
+		public String selectedProfile;
+		public String clientToken;
+		public Map<String, Profile> authenticationDatabase;
 	}
 	public static class ProfileResponse {
 		public final String id;

@@ -11,7 +11,7 @@ echo
 cd libs
 
 MIRROR=http://apache.sunsite.ualberta.ca
-LIBS=( "configuration-1.9" "cli-1.2" "io-2.4" "lang-2.6" "logging-1.1.3" )
+LIBS=( "configuration-1.10" "cli-1.2" "io-2.4" "lang-2.6" "logging-1.1.3" "collections-3.2.1")
 
 for each in "${LIBS[@]}"
 do
@@ -40,16 +40,21 @@ do
 	echo
 done
 
-git clone https://github.com/Raekye/SimpleAPI-Java.git
-if [ -f "simpleapi.jar" ];
+if [ -d "SimpleAPI-Java" ];
 then
-	echo "simpleapi.jar already exists"
-else
+	echo "Updating SimpleAPI-Java"
 	cd SimpleAPI-Java
-	ant
+	git pull origin master
 	cd ..
-	cp SimpleAPI-Java/dist/simpleapi.jar simpleapi.jar
+else
+	echo "Downloading SimpleAPI-Java"
+	git clone https://github.com/Raekye/SimpleAPI-Java.git
 fi
+cd SimpleAPI-Java
+echo "Rebuilding SimpleAPI-Java"
+ant
+cd ..
+cp SimpleAPI-Java/dist/simpleapi.jar simpleapi.jar
 echo
 
 if [ -d "google-gson-2.2.4" ];
